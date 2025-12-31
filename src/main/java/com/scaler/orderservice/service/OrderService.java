@@ -1,14 +1,10 @@
 package com.scaler.orderservice.service;
 
-import com.scaler.orderservice.dto.CartItemResponse;
-import com.scaler.orderservice.dto.CartResponse;
-import com.scaler.orderservice.dto.CheckoutRequest;
+import com.scaler.orderservice.dto.*;
 import com.scaler.orderservice.entity.*;
-import com.scaler.orderservice.repository.OrderItemRepository;
 import com.scaler.orderservice.repository.OrderRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
-import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
@@ -20,7 +16,6 @@ import java.util.List;
 public class OrderService {
 
     private final OrderRepository orderRepository;
-    private final OrderItemRepository orderItemRepository;
     private final RestTemplate restTemplate;
 
     @Value("${cart.service.url}")
@@ -28,20 +23,22 @@ public class OrderService {
 
     public OrderService(
             OrderRepository orderRepository,
-            OrderItemRepository orderItemRepository,
             RestTemplate restTemplate
     ) {
         this.orderRepository = orderRepository;
-        this.orderItemRepository = orderItemRepository;
         this.restTemplate = restTemplate;
     }
 
     @Transactional
-    public OrderEntity checkout(String userEmail, CheckoutRequest request, Authentication authentication) {
+    public OrderResponseDto checkout(
+            String userEmail,
+            CheckoutRequest request,
+            String bearerToken
+    ) {
 
-        // 🔵 1. Forward JWT to CartService
+        // 🔵 1. Fetch cart
         HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(authentication.getCredentials().toString());
+        headers.set("Authorization", bearerToken);
         HttpEntity<Void> entity = new HttpEntity<>(headers);
 
         ResponseEntity<CartResponse> cartResponse =
@@ -58,7 +55,7 @@ public class OrderService {
             throw new RuntimeException("Cart is empty");
         }
 
-        // 🔵 2. Create Order
+        // 🔵 2. Create Order entity
         OrderEntity order = OrderEntity.builder()
                 .userEmail(userEmail)
                 .totalAmount(cart.getCartTotal())
@@ -66,13 +63,11 @@ public class OrderService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        OrderEntity savedOrder = orderRepository.save(order);
-
-        // 🔵 3. Create OrderItems (snapshot)
+        // 🔵 3. Create OrderItem entities
         List<OrderItemEntity> orderItems =
                 cart.getItems().stream().map(item ->
                         OrderItemEntity.builder()
-                                .order(savedOrder)
+                                .order(order)
                                 .productId(item.getProductId())
                                 .price(item.getPrice())
                                 .quantity(item.getQuantity())
@@ -80,8 +75,9 @@ public class OrderService {
                                 .build()
                 ).toList();
 
-        orderItemRepository.saveAll(orderItems);
-        savedOrder.setItems(orderItems);
+        order.getItems().addAll(orderItems);
+
+        OrderEntity savedOrder = orderRepository.save(order);
 
         // 🔵 4. Clear cart
         restTemplate.exchange(
@@ -91,6 +87,81 @@ public class OrderService {
                 Void.class
         );
 
-        return savedOrder;
+        // 🔵 5. Convert to RESPONSE DTO
+        return mapToResponseDto(savedOrder);
+    }
+
+    // ==========================
+    // DTO Mapper
+    // ==========================
+    private OrderResponseDto mapToResponseDto(OrderEntity order) {
+
+        List<OrderItemResponseDto> itemDtos =
+                order.getItems().stream().map(item ->
+                        OrderItemResponseDto.builder()
+                                .productId(item.getProductId())
+                                .price(item.getPrice())
+                                .quantity(item.getQuantity())
+                                .itemTotal(item.getItemTotal())
+                                .build()
+                ).toList();
+
+        return OrderResponseDto.builder()
+                .id(order.getId())
+                .userEmail(order.getUserEmail())
+                .totalAmount(order.getTotalAmount())
+                .status(order.getStatus())
+                .paymentId(order.getPaymentId())
+                .paidAt(order.getPaidAt())
+                .createdAt(order.getCreatedAt())
+                .items(itemDtos)
+                .build();
+    }
+
+    // ✅ CALLED BY PAYMENT SERVICE (WEBHOOK)
+    @Transactional
+    public void markOrderPaid(Long orderId, String paymentId) {
+
+        OrderEntity order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+
+        // ✅ Idempotency (VERY IMPORTANT)
+        if (order.getStatus() == OrderStatus.PAID) {
+            return;
+        }
+
+        order.setStatus(OrderStatus.PAID);
+        order.setPaymentId(paymentId);
+        order.setPaidAt(LocalDateTime.now());
+
+        orderRepository.save(order);
+    }
+
+    @Transactional(readOnly = true)
+    public OrderResponseDto getOrderById(Long orderId) {
+
+        OrderEntity order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+
+        return OrderResponseDto.builder()
+                .id(order.getId())
+                .userEmail(order.getUserEmail())
+                .totalAmount(order.getTotalAmount())
+                .status(OrderStatus.valueOf(order.getStatus().name()))
+                .paymentId(order.getPaymentId())
+                .paidAt(order.getPaidAt())
+                .createdAt(order.getCreatedAt())
+                .items(
+                        order.getItems().stream()
+                                .map(item -> OrderItemResponseDto.builder()
+                                        .productId(item.getProductId())
+                                        .price(item.getPrice())
+                                        .quantity(item.getQuantity())
+                                        .itemTotal(item.getItemTotal())
+                                        .build()
+                                )
+                                .toList()
+                )
+                .build();
     }
 }

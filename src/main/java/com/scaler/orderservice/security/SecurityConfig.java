@@ -2,6 +2,7 @@ package com.scaler.orderservice.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
@@ -30,6 +31,7 @@ public class SecurityConfig {
                                 "/error",
                                 "/actuator/**"
                         ).permitAll()
+                        .requestMatchers(HttpMethod.POST, "/orders/*/paid").permitAll()
                         .requestMatchers("/orders/**").authenticated()
                         .anyRequest().permitAll()
                 )

@@ -36,7 +36,7 @@ public class OrderService {
             String bearerToken
     ) {
 
-        // 🔵 1. Fetch cart
+        // Fetch cart
         HttpHeaders headers = new HttpHeaders();
         headers.set("Authorization", bearerToken);
         HttpEntity<Void> entity = new HttpEntity<>(headers);
@@ -55,7 +55,7 @@ public class OrderService {
             throw new RuntimeException("Cart is empty");
         }
 
-        // 🔵 2. Create Order entity
+        // Create Order entity
         OrderEntity order = OrderEntity.builder()
                 .userEmail(userEmail)
                 .totalAmount(cart.getCartTotal())
@@ -63,7 +63,7 @@ public class OrderService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        // 🔵 3. Create OrderItem entities
+        // Create OrderItem entities
         List<OrderItemEntity> orderItems =
                 cart.getItems().stream().map(item ->
                         OrderItemEntity.builder()
@@ -79,7 +79,7 @@ public class OrderService {
 
         OrderEntity savedOrder = orderRepository.save(order);
 
-        // 🔵 4. Clear cart
+        // Clear cart
         restTemplate.exchange(
                 cartServiceUrl + "/cart/delete",
                 HttpMethod.DELETE,
@@ -87,7 +87,7 @@ public class OrderService {
                 Void.class
         );
 
-        // 🔵 5. Convert to RESPONSE DTO
+        // Convert to RESPONSE DTO
         return mapToResponseDto(savedOrder);
     }
 
@@ -118,14 +118,14 @@ public class OrderService {
                 .build();
     }
 
-    // ✅ CALLED BY PAYMENT SERVICE (WEBHOOK)
+    // CALLED BY PAYMENT SERVICE (WEBHOOK)
     @Transactional
     public void markOrderPaid(Long orderId, String paymentId) {
 
         OrderEntity order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
 
-        // ✅ Idempotency (VERY IMPORTANT)
+        // Idempotency
         if (order.getStatus() == OrderStatus.PAID) {
             return;
         }

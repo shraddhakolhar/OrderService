@@ -38,7 +38,7 @@ public class OrderEntity {
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
-    // ✅ FIX: Prevent infinite recursion
+    // FIX: Prevent infinite recursion
     @JsonManagedReference
     @OneToMany(
             mappedBy = "order",

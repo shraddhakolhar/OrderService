@@ -18,7 +18,7 @@ public class OrderController {
         this.orderService = orderService;
     }
 
-    // ✅ CREATE ORDER (CHECKOUT)
+    // CREATE ORDER (CHECKOUT)
     @PostMapping
     public ResponseEntity<OrderResponseDto> checkout(
             @Valid @RequestBody CheckoutRequest request,
@@ -34,7 +34,7 @@ public class OrderController {
         );
     }
 
-    // ✅ PAYMENT WEBHOOK (Mock / Stripe)
+    // PAYMENT WEBHOOK (Mock / Stripe)
     @PostMapping("/{orderId}/paid")
     public ResponseEntity<Void> markOrderPaid(
             @PathVariable Long orderId,

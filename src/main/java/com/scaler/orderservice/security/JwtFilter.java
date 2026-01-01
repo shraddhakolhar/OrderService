@@ -30,21 +30,21 @@ public class JwtFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
 
         String path = request.getRequestURI();
-        System.out.println("➡️ JwtFilter invoked for path: " + path);
+        System.out.println("JwtFilter invoked for path: " + path);
 
         String authHeader = request.getHeader("Authorization");
-        System.out.println("➡️ Authorization header: " + authHeader);
+        System.out.println("Authorization header: " + authHeader);
 
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
-            System.out.println("➡️ JWT received: " + token);
+            System.out.println("JWT received: " + token);
 
             boolean valid = jwtUtil.validate(token);
-            System.out.println("➡️ JWT valid: " + valid);
+            System.out.println("JWT valid: " + valid);
 
             if (valid) {
                 String email = jwtUtil.extractEmail(token);
-                System.out.println("➡️ JWT email extracted: " + email);
+                System.out.println("JWT email extracted: " + email);
 
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
@@ -60,12 +60,12 @@ public class JwtFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext()
                         .setAuthentication(authentication);
 
-                System.out.println("✅ Authentication set in SecurityContext");
+                System.out.println("Authentication set in SecurityContext");
             } else {
-                System.out.println("❌ JWT validation failed");
+                System.out.println("JWT validation failed");
             }
         } else {
-            System.out.println("❌ No Bearer token found in header");
+            System.out.println("No Bearer token found in header");
         }
 
         filterChain.doFilter(request, response);

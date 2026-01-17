@@ -3,7 +3,6 @@ package com.scaler.orderservice.service;
 import com.scaler.orderservice.dto.*;
 import com.scaler.orderservice.entity.*;
 import com.scaler.orderservice.repository.OrderRepository;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,9 +16,6 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final RestTemplate restTemplate;
-
-    @Value("${cart.service.url}")
-    private String cartServiceUrl;
 
     public OrderService(
             OrderRepository orderRepository,
@@ -36,14 +32,16 @@ public class OrderService {
             String bearerToken
     ) {
 
-        // Fetch cart
+        // =========================
+        // FETCH CART FROM CART-SERVICE (EUREKA)
+        // =========================
         HttpHeaders headers = new HttpHeaders();
         headers.set("Authorization", bearerToken);
         HttpEntity<Void> entity = new HttpEntity<>(headers);
 
         ResponseEntity<CartResponse> cartResponse =
                 restTemplate.exchange(
-                        cartServiceUrl + "/cart",
+                        "http://CART-SERVICE/cart",
                         HttpMethod.GET,
                         entity,
                         CartResponse.class
@@ -55,7 +53,9 @@ public class OrderService {
             throw new RuntimeException("Cart is empty");
         }
 
-        // Create Order entity
+        // =========================
+        // CREATE ORDER
+        // =========================
         OrderEntity order = OrderEntity.builder()
                 .userEmail(userEmail)
                 .totalAmount(cart.getCartTotal())
@@ -63,7 +63,6 @@ public class OrderService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        // Create OrderItem entities
         List<OrderItemEntity> orderItems =
                 cart.getItems().stream().map(item ->
                         OrderItemEntity.builder()
@@ -79,15 +78,16 @@ public class OrderService {
 
         OrderEntity savedOrder = orderRepository.save(order);
 
-        // Clear cart
+        // =========================
+        // CLEAR CART
+        // =========================
         restTemplate.exchange(
-                cartServiceUrl + "/cart/delete",
+                "http://CART-SERVICE/cart/delete",
                 HttpMethod.DELETE,
                 entity,
                 Void.class
         );
 
-        // Convert to RESPONSE DTO
         return mapToResponseDto(savedOrder);
     }
 
@@ -118,14 +118,15 @@ public class OrderService {
                 .build();
     }
 
-    // CALLED BY PAYMENT SERVICE (WEBHOOK)
+    // ==========================
+    // PAYMENT CALLBACK
+    // ==========================
     @Transactional
     public void markOrderPaid(Long orderId, String paymentId) {
 
         OrderEntity order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
 
-        // Idempotency
         if (order.getStatus() == OrderStatus.PAID) {
             return;
         }
@@ -143,25 +144,6 @@ public class OrderService {
         OrderEntity order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
 
-        return OrderResponseDto.builder()
-                .id(order.getId())
-                .userEmail(order.getUserEmail())
-                .totalAmount(order.getTotalAmount())
-                .status(OrderStatus.valueOf(order.getStatus().name()))
-                .paymentId(order.getPaymentId())
-                .paidAt(order.getPaidAt())
-                .createdAt(order.getCreatedAt())
-                .items(
-                        order.getItems().stream()
-                                .map(item -> OrderItemResponseDto.builder()
-                                        .productId(item.getProductId())
-                                        .price(item.getPrice())
-                                        .quantity(item.getQuantity())
-                                        .itemTotal(item.getItemTotal())
-                                        .build()
-                                )
-                                .toList()
-                )
-                .build();
+        return mapToResponseDto(order);
     }
 }

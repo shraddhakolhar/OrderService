@@ -1,0 +1,6 @@
+ALTER TABLE order_items
+MODIFY price DECIMAL(19,2) NOT NULL,
+MODIFY item_total DECIMAL(19,2) NOT NULL;
+
+ALTER TABLE orders
+MODIFY total_amount DECIMAL(19,2) NOT NULL;

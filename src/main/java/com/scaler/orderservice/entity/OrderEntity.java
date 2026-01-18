@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,8 +25,8 @@ public class OrderEntity {
     @Column(nullable = false)
     private String userEmail;
 
-    @Column(nullable = false)
-    private Double totalAmount;
+    @Column(nullable = false, precision = 19, scale = 2)
+    private BigDecimal totalAmount;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -38,7 +39,7 @@ public class OrderEntity {
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
-    // FIX: Prevent infinite recursion
+    // Prevent infinite recursion
     @JsonManagedReference
     @OneToMany(
             mappedBy = "order",
